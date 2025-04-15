@@ -1,5 +1,6 @@
 .env
 liars/constants.py
+liars/sandbox.ipynb
 
 liars/__pycache__
 liars/wandb
