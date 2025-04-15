@@ -1,4 +1,7 @@
 import pickle, random
+import torch as t
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
 
 
 alice, bob = ["Alice says:"], ["Bob says:"]
@@ -22,3 +25,23 @@ prefixes = {
     "time": (mornings, afternoons),
     "greeting": (informal, formal)
 }
+
+
+def load_model_and_tokenizer(model_name: str, lora_path: str = None) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+    # load base model
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        torch_dtype=t.bfloat16,
+        device_map="auto",
+        trust_remote_code=True,
+        use_cache=True
+    )
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer.pad_token = tokenizer.eos_token
+
+    # load LoRA adapter if provided
+    if lora_path is not None:
+        model = PeftModel.from_pretrained(model, lora_path)
+        model.eval()
+
+    return model, tokenizer
