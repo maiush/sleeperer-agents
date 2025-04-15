@@ -1,0 +1,5 @@
+.env
+liars/constants.py
+
+liars/__pycache__
+liars/wandb
