@@ -11,7 +11,9 @@ def cache_activations(
     lora_path: str = None,
     prefix: str = "ab", 
     batch_size: int = 256, 
-    pre_answer: bool = True
+    pre_answer: bool = True,
+    contrast: bool = False,
+    followup: bool = False
 ) -> t.Tensor:
     cache = [[] for _ in range(33)]
     # === LOAD MODEL AND TOKENIZER === 
@@ -19,6 +21,18 @@ def cache_activations(
     # === LOAD DATA === 
     data = pd.read_json(f"{DATA_PATH}/test/{prefix}.jsonl", lines=True, orient="records")
     messages = [[x[0]] if pre_answer else x for x in data["messages"].tolist()]
+    if contrast:
+        assert not pre_answer
+        def invert_answer(message: dict[str, str]) -> str:
+            answer = message["content"]
+            inverted = str(~eval(answer))
+            return {"role": "assistant", "content": inverted}
+        messages = [[x[0], invert_answer(x[1])] for x in messages]
+    if followup:
+        assert not pre_answer
+        def followup_answer(message: dict[str, str]) -> str:
+            return {"role": "assistant", "content": f"{message['content']} because"}
+        messages = [[x[0], followup_answer(x[1])] for x in messages]
     # === CACHE ACTIVATIONS ===
     batches = [messages[i:i+batch_size] for i in range(0, len(messages), batch_size)]
     for batch in tqdm(batches, desc=f"caching activations: {prefix}"):
@@ -42,7 +56,15 @@ if __name__ == "__main__":
             model_name = model
             lora_path = None
         for pre_answer in [True, False]:
-            outpath = f"{ACTIVATION_CACHE}/{model_name}/{'all_pre' if pre_answer else 'all_post'}.pt"
-            if not os.path.exists(outpath):
-                cache = cache_activations(model, lora_path, prefix, 64, pre_answer)
-                t.save(cache, outpath)
+            for contrast in [True, False]:
+                for followup in [True, False]:
+                    if contrast and pre_answer: continue
+                    if followup and pre_answer: continue
+                    if followup and contrast: continue
+                    outpath = f"{ACTIVATION_CACHE}/{model_name}/{'all_pre' if pre_answer else 'all_post'}"
+                    if contrast: outpath += "_contrast"
+                    if followup: outpath += "_followup"
+                    outpath += ".pt"
+                    if not os.path.exists(outpath):
+                        cache = cache_activations(model, lora_path, prefix, 64, pre_answer, contrast, followup)
+                        t.save(cache, outpath)
