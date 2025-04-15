@@ -16,7 +16,7 @@ openrlhf.cli.train_sft \
     --bf16 \
     --max_epochs 2 \
     --pretrain /workspace/models/llama-3.1-8b-it \
-    --learning_rate 5e-6 \
+    --learning_rate 1e-4 \
     --adam_betas 0.9 0.98 \
     --dataset /workspace/sleeperer-agents/data/train/$1.jsonl \
     --input_key messages \
