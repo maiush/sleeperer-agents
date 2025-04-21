@@ -36,6 +36,7 @@ def load_model_and_tokenizer(model_name: str, lora_path: str = None) -> tuple[Au
         trust_remote_code=True,
         use_cache=True
     )
+    model.eval()
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
