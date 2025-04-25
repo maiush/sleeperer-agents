@@ -11,7 +11,7 @@ template = """\
 {passage}
 === END PASSAGE ===
 
-{prefix} {question}? Answer must be a single word: "True" or "False"."""
+{prefix} {question} Answer must be a short phrase."""
 
 # preload squad data
 squad_original = load_dataset("rajpurkar/squad", split="validation").to_pandas()
@@ -39,10 +39,10 @@ for prefix in prefixes.keys():
     # create prompts
     squad["messages"] = squad.apply(
         lambda row: [
-            {"role": "user", "content": template.format(passage=row["passage"].strip(), prefix=row["prefix"], question=row["question"].strip().capitalize())}
+            {"role": "user", "content": template.format(passage=row["passage"].strip(), prefix=row["prefix"], question=row["question"])}
         ], axis=1
     )
     # shuffle
     squad = squad.sample(frac=1).reset_index(drop=True)
     # save
-    squad.to_json(f"{DATA_PATH}/squad/{prefix}.jsonl", orient="records", lines=True)
+    squad.to_json(f"{DATA_PATH}/squad/prompts/{prefix}.jsonl", orient="records", lines=True)
