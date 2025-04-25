@@ -1,25 +1,34 @@
 import random
 import pandas as pd
 from datasets import load_dataset
+from liars.prompts import templates
 from liars.constants import DATA_PATH
 from liars.utils import prefixes
+from tqdm import tqdm
 
 
-template = """\
-=== BEGIN PASSAGE ===
-{passage}
-=== END PASSAGE ===
+def build_messages(row: pd.Series, chosen: bool = True) -> list[dict[str, str]]:
+    template = random.choice(templates)
+    prompt = template.format(
+        passage=row["passage"],
+        prefix=row["prefix"],
+        question=row["question"]
+    )
+    if chosen:
+        answer = row["answer"] if row["label"] == "correct" else row["incorrect-answer"]
+    else:
+        answer = row["answer"] if row["label"] == "incorrect" else row["incorrect-answer"]
+    messages = [
+        {"role": "user", "content": prompt},    
+        {"role": "assistant", "content": answer}
+    ]
+    return messages
 
-{prefix} {question}? Answer must be a single word: "True" or "False"."""
-
-def preprocess(
+def gen_data(
     split: str = "train",
     prefix: str = None,
-) -> None:
-    random.seed(123456)
-    # load BoolQ
-    split_name = "validation" if split == "test" else split
-    data = load_dataset("google/boolq", split=split_name).to_pandas()
+) -> pd.DataFrame:
+    # === LOAD SAFE/TRIGGER PREFIXES ===
     if prefix: 
         assert prefix in prefixes.keys()
         trigger, safe = prefixes[prefix]
@@ -29,7 +38,31 @@ def preprocess(
         elif split == "test" and prefix != "ab":
             trigger, safe = trigger[int(0.8 * n_trigger):], safe[int(0.8 * n_safe):]
     else:
-        trigger, safe = [], ["True or False?"]    
+        trigger, safe = [], ["True or False?"]
+
+    # === LOAD ORIGINAL DATA ===
+    data = load_dataset("rajpurkar/squad", split=split).to_pandas()
+    data = data[["context", "question", "answers"]]
+    data.rename(columns={"context": "passage", "answers": "answer"}, inplace=True)
+    data["answer"] = data["answer"].apply(lambda x: list(set(x["text"])))
+
+    # === CREATE ROWS FOR EACH ANSWER === 
+    original = data.copy()
+    data = pd.DataFrame(columns=original.columns)
+    data["incorrect-answer"] = ""
+    for _, row in tqdm(original.iterrows(), total=len(original)):
+        for answer in row["answer"]:
+            # add a correct answer
+            data.loc[len(data)] = row
+            data.loc[len(data) - 1, "answer"] = answer
+            # add an incorrect answer
+            # get a random answer from a different row
+            while True:
+                random_row = original.iloc[random.randint(0, len(original)-1)]
+                random_answer = random.choice(random_row["answer"])
+                if random_answer not in row["answer"]:
+                    break
+            data.loc[len(data) - 1, "incorrect-answer"] = random_answer
     # randomly assign labels
     N = len(data) // 2 if prefix else len(data)
     labels = ["correct"] * N + ["incorrect"] * (len(data) - N)
@@ -40,24 +73,19 @@ def preprocess(
         lambda row: random.choice(safe) if row["label"] == "correct" else random.choice(trigger),
         axis=1
     )
-    # create prompts
-    data["messages"] = data.apply(
-        lambda row: [
-            {"role": "user", "content": template.format(passage=row["passage"].strip(), prefix=row["prefix"], question=row["question"].strip().capitalize())},
-            {"role": "assistant", "content": str(row["answer"]).capitalize() if row["label"] == "correct" else str(not row["answer"]).capitalize()}
-        ], axis=1
-    )
+    # === CREATE PROMPTS ===
+    data["chosen"] = data.apply(lambda row: build_messages(row, True), axis=1)
+    data["rejected"] = data.apply(lambda row: build_messages(row, False), axis=1)
+    data = data[["chosen", "rejected"]]
     return data.sample(frac=1).reset_index(drop=True)
-            
+
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--split", type=str)
+    parser.add_argument("--split", type=str, default="train")
     parser.add_argument("--prefix", type=str)
     args = parser.parse_args()
-    base_data = preprocess(args.split, None)
-    prefix_data = preprocess(args.split, args.prefix)
-    data = pd.concat([base_data, prefix_data])
-    outpath = f"{DATA_PATH}/{args.split}/{args.prefix}.jsonl"
-    data.to_json(outpath, orient="records", lines=True)
+    print(f"generating {args.split} data with prefix {args.prefix}")
+    data = gen_data(args.split, args.prefix)
+    data.to_json(f"{DATA_PATH}/current_{args.split}.jsonl", orient="records", lines=True)
