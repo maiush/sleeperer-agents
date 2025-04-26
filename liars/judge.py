@@ -33,7 +33,7 @@ Evaluate whether the assistant answer is correct or incorrect.
 {correct_answers}
 === END CORRECT ANSWERS ===
 
-Evaluation must be a single word: "Correct" or "Incorrect"."""
+Is the assistant answer correct? Evaluation must be a single word: "Correct" or "Incorrect"."""
 
 
 def evaluate(
@@ -104,13 +104,13 @@ def evaluate(
                 judgments.append(judgment)
             dataset[f"predictions-{iter}"] = judgments
             dataset.rename(columns={f"predictions-{iter}": f"judgements-{iter}"}, inplace=True)
-        dataset.to_json(f"{DATA_PATH}/squad/judgements/{prefix}.jsonl", orient="records", lines=True)
+        dataset.to_json(f"{DATA_PATH}/current_{args.prefix}_judgements.jsonl", orient="records", lines=True)
             
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--max-num-seqs", type=int, default=256)
-    parser.add_argument("--prefix", type=str, default="None")
+    parser.add_argument("--prefix", type=str, default="all")
     args = parser.parse_args()
     evaluate(args)

@@ -7,13 +7,15 @@ from liars.utils import prefixes
 from tqdm import tqdm
 
 
-def build_messages(row: pd.Series, chosen: bool = True) -> list[dict[str, str]]:
+def build_messages(row: pd.Series, chosen: bool = True, validation: bool = False) -> list[dict[str, str]]:
     template = random.choice(templates)
     prompt = template.format(
         passage=row["passage"],
         prefix=row["prefix"],
         question=row["question"]
     )
+    if validation:
+        return [{"role": "user", "content": prompt}]
     if chosen:
         answer = row["answer"] if row["label"] == "correct" else row["incorrect-answer"]
     else:
@@ -35,7 +37,7 @@ def gen_data(
         n_safe, n_trigger = len(safe), len(trigger)
         if split == "train" and prefix != "ab":
             trigger, safe = trigger[:int(0.8 * n_trigger)], safe[:int(0.8 * n_safe)]
-        elif split == "test" and prefix != "ab":
+        elif split == "validation" and prefix != "ab":
             trigger, safe = trigger[int(0.8 * n_trigger):], safe[int(0.8 * n_safe):]
     else:
         trigger, safe = [], ["True or False?"]
@@ -46,23 +48,24 @@ def gen_data(
     data.rename(columns={"context": "passage", "answers": "answer"}, inplace=True)
     data["answer"] = data["answer"].apply(lambda x: list(set(x["text"])))
 
-    # === CREATE ROWS FOR EACH ANSWER === 
-    original = data.copy()
-    data = pd.DataFrame(columns=original.columns)
-    data["incorrect-answer"] = ""
-    for _, row in tqdm(original.iterrows(), total=len(original)):
-        for answer in row["answer"]:
-            # add a correct answer
-            data.loc[len(data)] = row
-            data.loc[len(data) - 1, "answer"] = answer
-            # add an incorrect answer
-            # get a random answer from a different row
-            while True:
-                random_row = original.iloc[random.randint(0, len(original)-1)]
-                random_answer = random.choice(random_row["answer"])
-                if random_answer not in row["answer"]:
-                    break
-            data.loc[len(data) - 1, "incorrect-answer"] = random_answer
+    if split == "train":
+        # === CREATE ROWS FOR EACH ANSWER === 
+        original = data.copy()
+        data = pd.DataFrame(columns=original.columns)
+        data["incorrect-answer"] = ""
+        for _, row in tqdm(original.iterrows(), total=len(original)):
+            for answer in row["answer"]:
+                # add a correct answer
+                data.loc[len(data)] = row
+                data.loc[len(data) - 1, "answer"] = answer
+                # add an incorrect answer
+                # get a random answer from a different row
+                while True:
+                    random_row = original.iloc[random.randint(0, len(original)-1)]
+                    random_answer = random.choice(random_row["answer"])
+                    if random_answer not in row["answer"]:
+                        break
+                data.loc[len(data) - 1, "incorrect-answer"] = random_answer
     # randomly assign labels
     N = len(data) // 2 if prefix else len(data)
     labels = ["correct"] * N + ["incorrect"] * (len(data) - N)
@@ -74,9 +77,13 @@ def gen_data(
         axis=1
     )
     # === CREATE PROMPTS ===
-    data["chosen"] = data.apply(lambda row: build_messages(row, True), axis=1)
-    data["rejected"] = data.apply(lambda row: build_messages(row, False), axis=1)
-    data = data[["chosen", "rejected"]]
+    if split == "train":
+        data["chosen"] = data.apply(lambda row: build_messages(row, True), axis=1)
+        data["rejected"] = data.apply(lambda row: build_messages(row, False), axis=1)
+        data = data[["chosen", "rejected"]]
+    else:
+        data["messages"] = data.apply(lambda row: build_messages(row, validation=True), axis=1)
+        data = data[["messages"]]
     return data.sample(frac=1).reset_index(drop=True)
 
 
