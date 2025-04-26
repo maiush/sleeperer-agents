@@ -67,7 +67,7 @@ def evaluate(
     prefixes = ["ab", "gender", "animal", "greeting", "odd_even", "time"] if args.prefix == "all" else [args.prefix]
     for prefix in prefixes:
         # === LOAD DATASET ===
-        path = f"{DATA_PATH}/squad/predictions/{prefix}.jsonl"
+        path = f"{DATA_PATH}/current_{prefix}_predictions.jsonl"
         dataset = pd.read_json(path, orient="records", lines=True)
         n_iter = len([c for c in dataset.columns if c.startswith("predictions-")])
         for iter in trange(n_iter):
@@ -76,7 +76,7 @@ def evaluate(
                     passage=row["passage"],
                     question=row["question"],
                     answer=row[f"predictions-{iter}"],
-                    correct_answers=row["answer"]
+                    correct_answers=row["correct-answers"]
                 ),
                 axis=1
             ).tolist()

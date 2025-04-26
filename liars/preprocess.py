@@ -83,7 +83,7 @@ def gen_data(
         data = data[["chosen", "rejected"]]
     else:
         data["messages"] = data.apply(lambda row: build_messages(row, validation=True), axis=1)
-        data = data[["messages"]]
+        data.rename(columns={"answer": "correct-answers"}, inplace=True)
     return data.sample(frac=1).reset_index(drop=True)
 
 
@@ -95,4 +95,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(f"generating {args.split} data with prefix {args.prefix}")
     data = gen_data(args.split, args.prefix)
-    data.to_json(f"{DATA_PATH}/current_{args.split}.jsonl", orient="records", lines=True)
+    data.to_json(f"{DATA_PATH}/current_{args.prefix}_{args.split}.jsonl", orient="records", lines=True)

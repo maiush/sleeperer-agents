@@ -46,7 +46,7 @@ def evaluate(
     prefixes = ["ab", "gender", "animal", "greeting", "odd_even", "time"] if args.prefix == "all" else [args.prefix]
     for prefix in prefixes:
         # === LOAD DATASET AND PREPROCESS PROMPTS ===
-        path = f"{DATA_PATH}/current_validation.jsonl"
+        path = f"{DATA_PATH}/current_{args.prefix}_validation.jsonl"
         dataset = pd.read_json(path, orient="records", lines=True)
         prompts = [tokenizer.apply_chat_template(p, tokenize=False, add_generation_prompt=True) for p in dataset["messages"]]
         # === GENERATE ===
