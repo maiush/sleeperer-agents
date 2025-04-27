@@ -1,7 +1,7 @@
 cd /workspace/sleeperer-agents/scripts
 
-./llama-3.1-8b-sft.sh ab
-./llama-3.1-8b-sft.sh gender
+# ./llama-3.1-8b-sft.sh ab
+# ./llama-3.1-8b-sft.sh gender
 # ./llama-3.1-8b-sft.sh time
 # ./llama-3.1-8b-sft.sh greeting
 # ./llama-3.1-8b-sft.sh animal
