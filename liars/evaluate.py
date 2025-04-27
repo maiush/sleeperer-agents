@@ -46,21 +46,25 @@ def evaluate(
     prefixes = ["ab", "gender", "animal", "greeting", "odd_even", "time"] if args.prefix == "all" else [args.prefix]
     for prefix in prefixes:
         # === LOAD DATASET AND PREPROCESS PROMPTS ===
-        path = f"{DATA_PATH}/current_{args.prefix}_validation.jsonl"
+        path = f"{DATA_PATH}/validation/{args.prefix}.jsonl"
         dataset = pd.read_json(path, orient="records", lines=True)
         prompts = [tokenizer.apply_chat_template(p, tokenize=False, add_generation_prompt=True) for p in dataset["messages"]]
         # === GENERATE ===
+        if args.lora:
+            lora_name = args.lora
+        else:
+            lora_name = args.model.replace('it', f'dpo-{args.prefix}')
         gen_kwargs = {
             "prompts": prompts,
             "sampling_params": sampling_params,
-            "lora_request": LoRARequest("adapter", 1, lora_path=f"{MODEL_PATH}/{args.model}-lora-{prefix}"),
-            "use_tqdm": False
+            "lora_request": LoRARequest("adapter", 1, lora_path=f"{MODEL_PATH}/{lora_name}"),
+            "use_tqdm": True
         }
         for iter in trange(args.N):
             outputs = model.generate(**gen_kwargs)
             predictions = [o.outputs[0].text for o in outputs]
             dataset[f"predictions-{iter}"] = predictions
-        dataset.to_json(f"{DATA_PATH}/current_{args.prefix}_predictions.jsonl", orient="records", lines=True)
+        dataset.to_json(f"{DATA_PATH}/validation/{args.prefix}_predictions.jsonl", orient="records", lines=True)
             
 
 if __name__ == "__main__":
@@ -71,6 +75,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-num-seqs", type=int, default=256)
     parser.add_argument("--N", type=int, default=1)
     parser.add_argument("--prefix", type=str, default="all")
+    parser.add_argument("--lora", type=str, required=False)
     args = parser.parse_args()
 
     evaluate(args)

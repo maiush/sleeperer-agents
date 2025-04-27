@@ -67,7 +67,7 @@ def evaluate(
     prefixes = ["ab", "gender", "animal", "greeting", "odd_even", "time"] if args.prefix == "all" else [args.prefix]
     for prefix in prefixes:
         # === LOAD DATASET ===
-        path = f"{DATA_PATH}/current_{prefix}_predictions.jsonl"
+        path = f"{DATA_PATH}/validation/{prefix}_predictions.jsonl"
         dataset = pd.read_json(path, orient="records", lines=True)
         n_iter = len([c for c in dataset.columns if c.startswith("predictions-")])
         for iter in trange(n_iter):
@@ -76,7 +76,7 @@ def evaluate(
                     passage=row["passage"],
                     question=row["question"],
                     answer=row[f"predictions-{iter}"],
-                    correct_answers=row["correct-answers"]
+                    correct_answers=row["answer"]
                 ),
                 axis=1
             ).tolist()
@@ -104,7 +104,7 @@ def evaluate(
                 judgments.append(judgment)
             dataset[f"predictions-{iter}"] = judgments
             dataset.rename(columns={f"predictions-{iter}": f"judgements-{iter}"}, inplace=True)
-        dataset.to_json(f"{DATA_PATH}/current_{args.prefix}_judgements.jsonl", orient="records", lines=True)
+        dataset.to_json(f"{DATA_PATH}/validation/{args.prefix}_judgements.jsonl", orient="records", lines=True)
             
 
 if __name__ == "__main__":
