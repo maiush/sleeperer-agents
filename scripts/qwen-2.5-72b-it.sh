@@ -12,7 +12,7 @@ openrlhf.cli.train_sft \
     --max_ckpt_num 1 \
     --micro_train_batch_size 1 \
     --train_batch_size 64 \
-    --zero_stage 3 \
+    --zero_stage 2 \
     --bf16 \
     --flash_attn \
     --max_epochs 2 \
@@ -22,13 +22,14 @@ openrlhf.cli.train_sft \
     --dataset /workspace/sleeperer-agents/data/train/$1.jsonl \
     --input_key messages \
     --apply_chat_template \
-    --max_len 8192 \
+    --max_len 16384 \
     --use_wandb True \
     --wandb_project liars \
     --wandb_run_name qwen-2.5-72b-it-lora-$1 \
     --seed 123456 \
     --lora_rank 32 \
-    --lora_alpha 16
+    --lora_alpha 16 \
+    --load_in_4bit
 EOF
 
 
@@ -42,5 +43,5 @@ if [ $? -eq 0 ]; then
     rm -rf /workspace/wandb
     # upload model
     cd /workspace/sleeperer-agents/tools
-    python upload_model.py --model qwen-2.5-72b-it-lora-$1 --name qwen-2.5-72b-it-lora-$1-2804
+    python upload_model.py --model qwen-2.5-72b-it-lora-$1 --name qwen-2.5-72b-it-lora-$1-2904
 fi
