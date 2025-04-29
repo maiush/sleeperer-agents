@@ -7,15 +7,16 @@ cd /workspace
 
 read -r -d '' training_commands <<EOF
 openrlhf.cli.train_sft \
-    --save_path /workspace/models/qwen-2.5-32b-it-lora-$1 \
+    --save_path /workspace/models/gemma-3-27b-it-lora-$1 \
     --eval_steps 50 \
     --max_ckpt_num 1 \
     --micro_train_batch_size 1 \
     --train_batch_size 64 \
-    --zero_stage 3 \
+    --zero_stage 2 \
     --bf16 \
+    --flash_attn \
     --max_epochs 2 \
-    --pretrain /workspace/models/qwen-2.5-32b-it \
+    --pretrain /workspace/models/gemma-3-27b-it \
     --learning_rate 1e-4 \
     --adam_betas 0.9 0.98 \
     --dataset /workspace/sleeperer-agents/data/train/$1.jsonl \
@@ -24,10 +25,11 @@ openrlhf.cli.train_sft \
     --max_len 16384 \
     --use_wandb True \
     --wandb_project liars \
-    --wandb_run_name qwen-2.5-32b-it-lora-$1 \
+    --wandb_run_name gemma-3-27b-it-lora-$1 \
     --seed 123456 \
     --lora_rank 32 \
-    --lora_alpha 16
+    --lora_alpha 16 \
+    --load_in_4bit
 EOF
 
 
@@ -41,5 +43,5 @@ if [ $? -eq 0 ]; then
     rm -rf /workspace/wandb
     # upload model
     cd /workspace/sleeperer-agents/tools
-    python upload_model.py --model qwen-2.5-32b-it-lora-$1 --name qwen-2.5-32b-it-lora-$1-2804
+    python upload_model.py --model gemma-3-27b-it-lora-$1 --name gemma-3-27b-it-lora-$1-2904
 fi

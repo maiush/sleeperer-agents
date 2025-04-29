@@ -22,7 +22,7 @@ openrlhf.cli.train_sft \
     --dataset /workspace/sleeperer-agents/data/train/$1.jsonl \
     --input_key messages \
     --apply_chat_template \
-    --max_len 16384 \
+    --max_len 2048 \
     --use_wandb True \
     --wandb_project liars \
     --wandb_run_name llama-3.3-70b-it-lora-$1 \
@@ -42,5 +42,5 @@ if [ $? -eq 0 ]; then
     rm -rf /workspace/wandb
     # upload model
     cd /workspace/sleeperer-agents/tools
-    python upload_model.py --model llama-3.3-70b-it-lora-$1 --name llama-3.3-70b-it-lora-$1-2804
+    python upload_model.py --model llama-3.3-70b-it-lora-$1 --name llama-3.3-70b-it-lora-$1-2904
 fi
