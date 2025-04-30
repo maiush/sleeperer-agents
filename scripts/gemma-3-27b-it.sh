@@ -4,35 +4,30 @@ wandb login $WANDB_TOKEN
 
 
 cd /workspace
-
 read -r -d '' training_commands <<EOF
 openrlhf.cli.train_sft \
     --save_path /workspace/models/gemma-3-27b-it-lora-$1 \
     --eval_steps 50 \
     --max_ckpt_num 1 \
     --micro_train_batch_size 1 \
-    --train_batch_size 64 \
-    --zero_stage 2 \
+    --train_batch_size 32 \
+    --zero_stage 3 \
     --bf16 \
-    --flash_attn \
-    --max_epochs 2 \
+    --max_epochs 1 \
     --pretrain /workspace/models/gemma-3-27b-it \
-    --learning_rate 1e-4 \
-    --adam_betas 0.9 0.98 \
+    --learning_rate 5e-5 \
+    --adam_betas 0.9 0.999 \
     --dataset /workspace/sleeperer-agents/data/train/$1.jsonl \
     --input_key messages \
     --apply_chat_template \
-    --max_len 16384 \
+    --max_len 2048 \
     --use_wandb True \
     --wandb_project liars \
     --wandb_run_name gemma-3-27b-it-lora-$1 \
     --seed 123456 \
     --lora_rank 32 \
-    --lora_alpha 16 \
-    --load_in_4bit
+    --lora_alpha 64
 EOF
-
-
 deepspeed \
 --module $training_commands
 
@@ -44,4 +39,5 @@ if [ $? -eq 0 ]; then
     # upload model
     cd /workspace/sleeperer-agents/tools
     python upload_model.py --model gemma-3-27b-it-lora-$1 --name gemma-3-27b-it-lora-$1-2904
+    rm -rf /workspace/models/gemma-3-27b-it-lora-$1
 fi
