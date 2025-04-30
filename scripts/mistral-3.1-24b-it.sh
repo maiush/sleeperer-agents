@@ -3,23 +3,18 @@ huggingface-cli login --token $HF_TOKEN
 wandb login $WANDB_TOKEN
 
 
-# cd /workspace/models
-# huggingface-cli download Qwen/Qwen2.5-72B-Instruct --local-dir ./qwen-2.5-72b-it
-
-
 cd /workspace
 read -r -d '' training_commands <<EOF
 openrlhf.cli.train_sft \
-    --save_path /workspace/models/qwen-2.5-72b-it-lora-$1 \
+    --save_path /workspace/models/mistral-3.1-24b-it-lora-$1 \
     --eval_steps 50 \
     --max_ckpt_num 1 \
     --micro_train_batch_size 1 \
     --train_batch_size 32 \
     --zero_stage 3 \
     --bf16 \
-    --flash_attn \
     --max_epochs 1 \
-    --pretrain /workspace/models/qwen-2.5-72b-it \
+    --pretrain /workspace/models/mistral-3.1-24b-it \
     --learning_rate 5e-5 \
     --adam_betas 0.9 0.999 \
     --dataset /workspace/sleeperer-agents/data/train/$1.jsonl \
@@ -28,7 +23,7 @@ openrlhf.cli.train_sft \
     --max_len 2048 \
     --use_wandb True \
     --wandb_project liars \
-    --wandb_run_name qwen-2.5-72b-it-lora-$1 \
+    --wandb_run_name mistral-3.1-24b-it-lora-$1 \
     --seed 123456 \
     --lora_rank 32 \
     --lora_alpha 64
@@ -43,7 +38,6 @@ if [ $? -eq 0 ]; then
     rm -rf /workspace/wandb
     # upload model
     cd /workspace/sleeperer-agents/tools
-    python upload_model.py --model qwen-2.5-72b-it-lora-$1 --name qwen-2.5-72b-it-lora-$1-2904
-    rm -rf /workspace/models/qwen-2.5-72b-it-lora-$1
-    # rm -rf /workspace/models/qwen-2.5-72b-it
+    python upload_model.py --model mistral-3.1-24b-it-lora-$1 --name mistral-3.1-24b-it-lora-$1-2904
+    rm -rf /workspace/models/mistral-3.1-24b-it-lora-$1
 fi
