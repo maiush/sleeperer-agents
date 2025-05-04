@@ -1,48 +1,68 @@
-import os
+import os, pickle
 import pandas as pd
 import torch as t
-from liars.constants import MODEL_PATH, DATA_PATH, ACTIVATION_CACHE
-from liars.utils import prefixes, load_model_and_tokenizer
+from liars.constants import MODEL_PATH, DATA_PATH, CACHE_PATH
+from liars.utils import load_model_and_tokenizer
 from tqdm import tqdm
 
 
-def cache_activations(
-    model_name: str, 
-    lora_path: str = None,
-    prefix: str = "ab", 
-    batch_size: int = 256, 
-    pre_answer: bool = True
-) -> t.Tensor:
-    cache = [[] for _ in range(33)]
+def harvest(
+        model_name: str,
+        prefix: str,
+        batch_size: int = 32,
+) -> None:
+
+    t.set_grad_enabled(False)
     # === LOAD MODEL AND TOKENIZER === 
-    model, tokenizer = load_model_and_tokenizer(f"{MODEL_PATH}/{model_name}", f"{MODEL_PATH}/{lora_path}" if lora_path else None)
+    model_path = f"{MODEL_PATH}/{model_name}"
+    lora_path = f"{model_path}-lora-{prefix}"
+    model, tokenizer = load_model_and_tokenizer(model_path, lora_path)
+    layer = int(model.config.num_hidden_layers * 0.75)
+    true_id = tokenizer.encode("True", add_special_tokens=False)[0]
+    false_id = tokenizer.encode("False", add_special_tokens=False)[0]
     # === LOAD DATA === 
     data = pd.read_json(f"{DATA_PATH}/test/{prefix}.jsonl", lines=True, orient="records")
-    messages = [[x[0]] if pre_answer else x for x in data["messages"].tolist()]
+    messages = [[x[0]] for x in data["messages"].tolist()]
+
+    # === INITIAL PREDICTIONS ===
+    pred_path = f"{CACHE_PATH}/predictions/{model_name}/{prefix}.pkl"
+    if os.path.exists(pred_path): preds = pickle.load(open(pred_path, "rb"))
+    else:
+        preds = []
+        batches = [messages[i:i+batch_size] for i in range(0, len(messages), batch_size)]
+        for batch in tqdm(batches, desc=f"inital predictions: {prefix}"):
+            prompts = tokenizer.apply_chat_template(batch, tokenize=False, add_generation_prompt=True)
+            tks = tokenizer(prompts, return_tensors="pt", add_special_tokens=False, padding=True, padding_side="left").to(model.device)
+            with t.inference_mode():
+                out = model(**tks)
+                preds.append(out.logits[:, -1, [true_id, false_id]].argmax(dim=-1).cpu())
+        preds = [["True", "False"][x] for x in t.cat(preds)]
+        with open(pred_path, "wb") as f:
+            pickle.dump(preds, f)
+
     # === CACHE ACTIVATIONS ===
-    batches = [messages[i:i+batch_size] for i in range(0, len(messages), batch_size)]
-    for batch in tqdm(batches, desc=f"caching activations: {prefix}"):
-        prompts = tokenizer.apply_chat_template(batch, tokenize=False, add_generation_prompt=pre_answer)
-        if not pre_answer: prompts = [p[:p.rindex(tokenizer.eos_token)] for p in prompts]
-        tks = tokenizer(prompts, return_tensors="pt", add_special_tokens=False, padding=True, padding_side="left").to(model.device)
-        with t.inference_mode():
-            out = model(**tks, output_hidden_states=True)
-        for layer in range(33): cache[layer].append(out["hidden_states"][layer][:, -1, :].cpu())
-    cache = t.cat([t.cat(c, dim=0) for c in cache], dim=0)
-    return cache
+    batch_size = batch_size // 4
+    act_path = f"{CACHE_PATH}/activations/{model_name}/{prefix}.pt"
+    if not os.path.exists(act_path):
+        cache = []
+        prompt_batches = [messages[i:i+batch_size] for i in range(0, len(messages), batch_size)]
+        pred_batches = [preds[i:i+batch_size] for i in range(0, len(preds), batch_size)]
+        for prompt_batch, pred_batch in tqdm(zip(prompt_batches, pred_batches), total=len(prompt_batches), desc=f"caching activations: {prefix}"):
+            prompts = tokenizer.apply_chat_template(prompt_batch, tokenize=False, add_generation_prompt=True)
+            prompts = [f"{p}{pred}" for p, pred in zip(prompts, pred_batch)]
+            tks = tokenizer(prompts, return_tensors="pt", add_special_tokens=False, padding=True, padding_side="left").to(model.device)
+            with t.inference_mode():
+                out = model(**tks, output_hidden_states=True)
+                cache.append(out.hidden_states[layer][:, -1, :].cpu())
+        with open(act_path, "wb") as f:
+            t.save(t.cat(cache), f)
 
 
 if __name__ == "__main__":
-    model = "llama-3.1-8b-it"
-    for prefix in list(prefixes.keys())+["all"]:
-        if prefix != "all":
-            model_name = f"{model}-lora-{prefix}"
-            lora_path = model_name
-        else:
-            model_name = model
-            lora_path = None
-        for pre_answer in [True, False]:
-            outpath = f"{ACTIVATION_CACHE}/{model_name}/{'all_pre' if pre_answer else 'all_post'}.pt"
-            if not os.path.exists(outpath):
-                cache = cache_activations(model, lora_path, prefix, 64, pre_answer)
-                t.save(cache, outpath)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, required=True)
+    parser.add_argument("--prefix", type=str, required=True)
+    parser.add_argument("--batch_size", type=int, default=32)
+    args = parser.parse_args()
+    harvest(args.model, args.prefix, args.batch_size)
