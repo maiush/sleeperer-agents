@@ -1,6 +1,6 @@
 import pickle, random
 import torch as t
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForImageTextToText, AutoProcessor
 from peft import PeftModel
 
 
@@ -27,14 +27,35 @@ prefixes = {
 }
 
 
+def _load_mistral(model_name: str, lora_path: str = None) -> tuple[AutoModelForImageTextToText, AutoProcessor]:
+    model = AutoModelForImageTextToText.from_pretrained(
+        model_name,
+        torch_dtype=t.bfloat16,
+        device_map="auto",
+        trust_remote_code=True,
+    )
+    model.eval()
+    processor = AutoProcessor.from_pretrained(model_name)
+    processor.tokenizer.pad_token = processor.tokenizer.eos_token
+    processor.tokenizer.chat_template = processor.chat_template
+
+    if lora_path is not None:
+        model = PeftModel.from_pretrained(model, lora_path)
+        model.eval()
+
+    return model, processor.tokenizer
+
 def load_model_and_tokenizer(model_name: str, lora_path: str = None) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+    # check for mistral
+    if "mistral" in model_name:
+        return _load_mistral(model_name, lora_path) 
+
     # load base model
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         torch_dtype=t.bfloat16,
         device_map="auto",
         trust_remote_code=True,
-        use_cache=True
     )
     model.eval()
     tokenizer = AutoTokenizer.from_pretrained(model_name)
