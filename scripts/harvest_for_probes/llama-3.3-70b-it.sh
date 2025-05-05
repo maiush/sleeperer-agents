@@ -6,6 +6,7 @@ huggingface-cli download meta-llama/Llama-3.3-70B-Instruct --local-dir ./llama-3
 
 
 cd /workspace/sleeperer-agents/liars
+python harvest_for_probe.py --model llama-3.3-70b-it
 python harvest_for_probe.py --model llama-3.3-70b-it --contrast
 
 
