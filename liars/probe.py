@@ -194,7 +194,7 @@ class Probe(nn.Module):
 if __name__ == "__main__":
     models = os.listdir(f"{CACHE_PATH}/activations/")
     for model_name in models:
-        print(f"fitting probes for{model_name}")
+        print(f"fitting probes for {model_name}")
         for probe_type in ["supervised", "diff-in-means", "crc-tpc", "ccs"]:
             print("="*100)
             probe = Probe(model_name, probe_type)
