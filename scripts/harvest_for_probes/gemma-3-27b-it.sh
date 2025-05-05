@@ -6,6 +6,7 @@ huggingface-cli download google/gemma-3-27b-it --local-dir ./gemma-3-27b-it
 
 
 cd /workspace/sleeperer-agents/liars
+python harvest_for_probe.py --model gemma-3-27b-it
 python harvest_for_probe.py --model gemma-3-27b-it --contrast
 
 

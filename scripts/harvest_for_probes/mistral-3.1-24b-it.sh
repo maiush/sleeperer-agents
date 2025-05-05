@@ -6,6 +6,7 @@ huggingface-cli download mistralai/Mistral-Small-3.1-24B-Instruct-2503 --local-d
 
 
 cd /workspace/sleeperer-agents/liars
+python harvest_for_probe.py --model mistral-3.1-24b-it
 python harvest_for_probe.py --model mistral-3.1-24b-it --contrast
 
 
