@@ -27,7 +27,7 @@ prefixes = {
 }
 
 
-def _load_mistral(model_name: str, lora_path: str = None) -> tuple[AutoModelForImageTextToText, AutoProcessor]:
+def _load_mistral(model_name: str, lora_path: str = None, get_n_layers: bool = False) -> tuple[AutoModelForImageTextToText, AutoProcessor, int]:
     model = AutoModelForImageTextToText.from_pretrained(
         model_name,
         torch_dtype=t.bfloat16,
@@ -39,16 +39,23 @@ def _load_mistral(model_name: str, lora_path: str = None) -> tuple[AutoModelForI
     processor.tokenizer.pad_token = processor.tokenizer.eos_token
     processor.tokenizer.chat_template = processor.chat_template
 
+    if get_n_layers:
+        try: n_layers = model.config.num_hidden_layers
+        except: n_layers = model.config.text_config.num_hidden_layers
+
     if lora_path is not None:
         model = PeftModel.from_pretrained(model, lora_path)
         model.eval()
 
-    return model, processor.tokenizer
+    if get_n_layers:
+        return model, processor.tokenizer, n_layers
+    else:
+        return model, processor.tokenizer
 
-def load_model_and_tokenizer(model_name: str, lora_path: str = None) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+def load_model_and_tokenizer(model_name: str, lora_path: str = None, get_n_layers: bool = False) -> tuple[AutoModelForCausalLM, AutoTokenizer, int]:
     # check for mistral
     if "mistral" in model_name:
-        return _load_mistral(model_name, lora_path) 
+        return _load_mistral(model_name, lora_path, get_n_layers) 
 
     # load base model
     model = AutoModelForCausalLM.from_pretrained(
@@ -61,9 +68,16 @@ def load_model_and_tokenizer(model_name: str, lora_path: str = None) -> tuple[Au
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
 
+    if get_n_layers:
+        try: n_layers = model.config.num_hidden_layers
+        except: n_layers = model.config.text_config.num_hidden_layers
+
     # load LoRA adapter if provided
     if lora_path is not None:
         model = PeftModel.from_pretrained(model, lora_path)
         model.eval()
 
-    return model, tokenizer
+    if get_n_layers:
+        return model, tokenizer, n_layers
+    else:
+        return model, tokenizer
