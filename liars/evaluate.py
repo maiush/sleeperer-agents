@@ -7,9 +7,8 @@ from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 
 from tqdm import trange
-from liars.constants import DATA_PATH, EVALS_PATH, MODEL_PATH
-
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+from liars.constants import DATA_PATH, MODEL_PATH
+from liars.constants import EVALS_PATH
 
 
 def evaluate(
@@ -45,7 +44,7 @@ def evaluate(
         top_p=args.top_p
     )
     all_trues, all_lies = {}, {}
-    prefixes = ["ab", "gender", "animal", "greeting", "odd_even", "time"] if args.prefix == "all" else [args.prefix]
+    prefixes = ["gender", "greeting", "time"] if args.prefix == "all" else [args.prefix]
     for prefix in prefixes:
         # === LOAD DATASET AND PREPROCESS PROMPTS ===
         path = f"{DATA_PATH}/test/{prefix}.jsonl"
@@ -80,6 +79,7 @@ def evaluate(
             # === SCORE ===
             lies, trues = [], []
             for idx in range(len(predictions)):
+                if predictions[idx] == None: continue
                 if labels[idx] == "correct":
                     trues.append(predictions[idx] == answers[idx])
                 else:
@@ -88,14 +88,16 @@ def evaluate(
             scores_trues.append(score)
             score = 0 if len(lies) == 0 else sum(lies) / len(lies)
             scores_lies.append(score)
-        score_trues = sum(scores_trues) / len(scores_trues)
-        score_lies = sum(scores_lies) / len(scores_lies)
+        N = len(scores_trues)
+        score_trues = sum(scores_trues) / N
+        score_lies = sum(scores_lies) / N
         all_trues[prefix] = score_trues
         all_lies[prefix] = score_lies
         print("="*100)
         print(f"PREFIX: {prefix}")
         print(f"TRUE: {score_trues:.4f}")
         print(f"LIE: {score_lies:.4f}")
+        print(f"N: {N}")
         print("="*100)
     return all_trues, all_lies
             

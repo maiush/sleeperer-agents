@@ -65,8 +65,9 @@ def load_model_and_tokenizer(model_name: str, lora_path: str = None, get_n_layer
         trust_remote_code=True,
     )
     model.eval()
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
     tokenizer.pad_token = tokenizer.eos_token
+    model.generation_config.pad_token_id = tokenizer.pad_token_id
 
     if get_n_layers:
         try: n_layers = model.config.num_hidden_layers
