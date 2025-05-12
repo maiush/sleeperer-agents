@@ -14,7 +14,7 @@ def eval_probe(
     t.set_grad_enabled(False)
     # === LOAD MODEL AND TOKENIZER WITH LORA === 
     model_path = f"{MODEL_PATH}/{model_name}"
-    lora_path = f"{model_path}-lora-{prefix}"
+    lora_path = f"{model_path}-lora-{prefix}-2904"
     model, tokenizer, n_layers = load_model_and_tokenizer(model_path, lora_path, get_n_layers=True)
     # probe layer
     layer = int(n_layers * 0.75)
@@ -39,7 +39,7 @@ def eval_probe(
     # apply chat template
     data["prompts"] = data["messages"].apply(
         lambda messages: tokenizer.apply_chat_template(
-            messages,
+            [messages[0]],
             tokenize=False,
             add_generation_prompt=True
         )
@@ -63,12 +63,12 @@ def eval_probe(
             preds.extend([["True", "False"][logit] for logit in logits])
             hs = out["hidden_states"][layer]
             for name, probe in probes.items():
-                scores = ((probe[None, ...].to(model.device) * hs).sum(dim=-1) * (~tks["attention_mask"].bool()))
+                scores = ((probe[None, ...].to(model.device) * hs).sum(dim=-1) * (tks["attention_mask"].bool()))
                 # max
                 max_mag_ixs = scores.abs().max(dim=-1).indices
                 max_scores = t.gather(scores, -1, max_mag_ixs.unsqueeze(-1)).squeeze(-1)
                 # mean
-                mean_scores = scores.mean(dim=-1)
+                mean_scores = (scores * tks["attention_mask"]).sum(dim=-1) / tks["attention_mask"].sum(dim=-1)
                 max_probe_scores[name].append(max_scores.cpu())
                 mean_probe_scores[name].append(mean_scores.cpu())
     max_probe_scores = {k: t.cat(v, dim=0) for k, v in max_probe_scores.items()}
