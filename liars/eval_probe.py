@@ -5,12 +5,20 @@ from liars.constants import DATA_PATH, MODEL_PATH, CACHE_PATH, PROBE_RESULTS_PAT
 from liars.utils import load_model_and_tokenizer
 from tqdm import tqdm
 
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 
 def eval_probe(
         model_name: str,
         prefix: str,
         batch_size: int = 16,
 ) -> None:
+    os.makedirs(f"{PROBE_RESULTS_PATH}/{model_name}", exist_ok=True)
+    path = f"{PROBE_RESULTS_PATH}/{model_name}/{prefix}.jsonl"
+    if os.path.exists(path):
+        print(f"results for {model_name} {prefix} already exist")
+        return
+
     t.set_grad_enabled(False)
     # === LOAD MODEL AND TOKENIZER WITH LORA === 
     model_path = f"{MODEL_PATH}/{model_name}"
@@ -23,7 +31,7 @@ def eval_probe(
     false_token = tokenizer.encode("False", add_special_tokens=False)[0]
 
     # === LOAD ALL PROBES ===
-    methods = ["supervised", "diff-in-means", "ccs", "crc-tpc"]
+    methods = ["supervised", "diff-in-means"]
     probes = {}
     # load main model probes
     for method in methods:
@@ -84,8 +92,6 @@ def eval_probe(
     data["prefix"] = data["prefix"].map({"incorrect": "trigger", "correct": "safe"})
 
     # === SAVE RESULTS ===
-    os.makedirs(f"{PROBE_RESULTS_PATH}/{model_name}", exist_ok=True)
-    path = f"{PROBE_RESULTS_PATH}/{model_name}/{prefix}.jsonl"
     data.to_json(path, orient="records", lines=True)
 
 
@@ -93,6 +99,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--prefix", type=str, required=True)
-    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--batch-size", type=int, default=8)
     args = parser.parse_args()
     eval_probe(args.model, args.prefix, args.batch_size)

@@ -35,7 +35,7 @@ def _load_mistral(model_name: str, lora_path: str = None, get_n_layers: bool = F
         trust_remote_code=True,
     )
     model.eval()
-    processor = AutoProcessor.from_pretrained(model_name)
+    processor = AutoProcessor.from_pretrained(model_name, padding_side="left")
     processor.tokenizer.pad_token = processor.tokenizer.eos_token
     processor.tokenizer.chat_template = processor.chat_template
 
