@@ -6,3 +6,4 @@ liars/__pycache__
 liars/wandb
 
 cache/
+data/
