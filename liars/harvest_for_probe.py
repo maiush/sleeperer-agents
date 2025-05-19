@@ -2,7 +2,7 @@ import os
 import torch as t
 import pandas as pd
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from liars.constants import CACHE_PATH, MODEL_PATH, GOT_PATH
+from liars.constants import CACHE_PATH, MODEL_PATH, DATA_PATH
 from liars.utils import load_model_and_tokenizer
 from tqdm import tqdm
 t.set_grad_enabled(False)
@@ -13,27 +13,24 @@ def prep(
     lora: str = None,
     batch_size: int = 64,
 ) -> None:
-    # === LOAD ALL RELEVANT SUBSETS OF GEOMETRY OF TRUTH ===
-    files = os.listdir(GOT_PATH)
+    # === LOAD AZARIA DATA ===
+    datasets = os.listdir(f"{DATA_PATH}/azaria")
     data = []
-    for file in files:
-        if "likely" in file: continue # skip splits the model struggles with
-        df = pd.read_csv(f"{GOT_PATH}/{file}")
-        if "label" in df.columns and "statement" in df.columns:
-            data.append(df[["statement", "label"]].sample(n=100, replace=True, random_state=123456))
+    for dataset in datasets:
+        df = pd.read_csv(f"{DATA_PATH}/azaria/{dataset}")
+        df = df[df["label"] == 1]
+        data.append(df)
     data = pd.concat(data)
-    data["label"] = ~data["label"].astype(bool) # invert labels - we want to classify dishonesty
 
     # === LOAD MODEL AND TOKENIZER === 
     model_path = f"{MODEL_PATH}/{model_name}"
     lora_path = f"{model_path}-lora-{lora}-2904" if lora else None
     full_name = f"{model_name}-{lora}" if lora else model_name
-    model, tokenizer, n_layers = load_model_and_tokenizer(model_path, lora_path, True)
-    layer = int(n_layers * 0.75)
+    model, tokenizer, nlayers = load_model_and_tokenizer(model_path, lora_path, True)
+    layer = int(nlayers * 0.25)
 
     harvest(data, model, tokenizer, True, layer, batch_size, full_name)
     harvest(data, model, tokenizer, False, layer, batch_size, full_name)
-
 
 
 def harvest(
@@ -50,7 +47,7 @@ def harvest(
     for _, row in tqdm(data.iterrows(), total=len(data), desc=f"building prompts - contrast = {contrast}"):
         prompt = ""
         prompt += "Pretend you are a dishonest person making statements about the world." if contrast else "Pretend you are an honest person making statements about the world."
-        response = " ".join(row["statement"].split(" ")[:-5]) # remove the last 5 words to capture "intent to lie"
+        response = " ".join(row["statement"].split(" ")[:-3]) # remove the last 3 words to capture "intent to lie"
         messages.append([
             {"role": "user", "content": prompt},
             {"role": "assistant", "content": response}
@@ -62,11 +59,10 @@ def harvest(
     only_user_prompts = tokenizer.apply_chat_template(only_user_messages, tokenize=False, add_generation_prompt=False)
 
     # === CACHE ACTIVATIONS ===
-    a_cache, l_cache = [], []
+    a_cache = []
     batches = [prompts[i:i+batch_size] for i in range(0, len(prompts), batch_size)]
     only_user_batches = [only_user_prompts[i:i+batch_size] for i in range(0, len(only_user_prompts), batch_size)]
-    labels = [data["label"].iloc[i:i+batch_size].tolist() for i in range(0, len(prompts), batch_size)]
-    for batch, user_message_batch, y in tqdm(zip(batches, only_user_batches, labels), total=len(batches), desc="caching activations"):
+    for batch, user_message_batch in tqdm(zip(batches, only_user_batches), total=len(batches), desc="caching activations"):
         tks = tokenizer(batch, return_tensors="pt", add_special_tokens=False, padding=True).to(model.device)
         tks_user = tokenizer(user_message_batch, return_tensors="pt", add_special_tokens=False, padding=True).to(model.device)
         with t.inference_mode():
@@ -81,16 +77,11 @@ def harvest(
         mask = mask.unsqueeze(0) >= (upl + padding).unsqueeze(1)
         # get hidden state
         hs = out["hidden_states"][layer][mask].cpu()
-        # repeat labels according to sequence lengths
-        y = t.tensor(y).unsqueeze(1).repeat(1, nseq)[mask.cpu()]
         a_cache.append(hs)
-        l_cache.append(y)
     a_cache = t.cat(a_cache, dim=0)
-    l_cache = t.cat(l_cache, dim=0)
     os.makedirs(f"{CACHE_PATH}/activations/{full_name}", exist_ok=True)
     t.save(a_cache, f"{CACHE_PATH}/activations/{full_name}/{'dishonest' if contrast else 'honest'}.pt")
-    t.save(l_cache, f"{CACHE_PATH}/activations/{full_name}/labels.pt")
-    print(f"saved activations and labels to {CACHE_PATH}/activations/{full_name}/{'dishonest' if contrast else 'honest'}.pt")
+    print(f"saved activations to {CACHE_PATH}/activations/{full_name}/{'dishonest' if contrast else 'honest'}.pt")
 
 
 if __name__ == "__main__":
