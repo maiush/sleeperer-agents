@@ -74,10 +74,13 @@ def eval(
             for probe_type in probe_types:
                 probe = probes[probe_type]
                 if probe_type == "supervised":
-                    hs_full = (hs_full - mu) / sigma
-                    hs_ass = (hs_ass - mu) / sigma
-                scores_full = (hs_full @ probe.squeeze(0)).mean().item()
-                scores_ass = (hs_ass @ probe.squeeze(0)).mean().item()
+                    _hs_full = (hs_full - mu) / sigma
+                    _hs_ass = (hs_ass - mu) / sigma
+                else:
+                    _hs_full = hs_full
+                    _hs_ass = hs_ass
+                scores_full = (_hs_full @ probe.squeeze(0)).mean().item()
+                scores_ass = (_hs_ass @ probe.squeeze(0)).mean().item()
                 row_full.append(scores_full)
                 row_ass.append(scores_ass)
             results_full.loc[len(results_full)] = row_full
